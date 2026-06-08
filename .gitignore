@@ -10,4 +10,8 @@ results.csv
 dist/
 scripts/
 .claude/
-submission_report.txt
+runs/
+
+!*quantroberta_phase_5.pth
+!*quantroberta_phase_1.pth
+

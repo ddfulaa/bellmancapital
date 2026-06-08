@@ -1,0 +1,67 @@
+========================================================================
+  BELLMAN CAPITAL — SUBMISSION REPORT
+========================================================================
+  Result : ALL TESTS PASSED
+  Total  : 39 tests
+========================================================================
+
+── ENVIRONMENT ───────────────────────────────────────────────────────
+  ✓ [PASSED]  TradingEnv can be created with a prices DataFrame
+  ✓ [PASSED]  env.reset() returns an observation with the declared shape
+  ✓ [PASSED]  env.reset() returns a dict as the second element
+  ✓ [PASSED]  Observation contains no NaN or Inf values
+  ✓ [PASSED]  env.step() returns (obs, float, bool, bool, dict)
+  ✓ [PASSED]  Observation shape is the same before and after a step
+  ✓ [PASSED]  Every action produces a finite obs and reward
+  ✓ [PASSED]  info dict from step() contains 'portfolio_value' key
+  ✓ [PASSED]  A full episode eventually ends (terminated=True)
+  ✓ [PASSED]  action_space.n matches the number of actions defined in _ACTION_WEIGHTS
+  ✓ [PASSED]  Observation lies inside the declared observation_space
+
+── PORTFOLIO WEIGHTS ─────────────────────────────────────────────────
+  ✓ [PASSED]  Action 0 weights sum to 1
+  ✓ [PASSED]  Action 1 weights sum to 1
+  ✓ [PASSED]  Action 2 weights sum to 1
+  ✓ [PASSED]  Action 3 weights sum to 1
+  ✓ [PASSED]  Action 4 weights sum to 1
+  ✓ [PASSED]  Action 0 cash weight >= 0
+  ✓ [PASSED]  Action 1 cash weight >= 0
+  ✓ [PASSED]  Action 2 cash weight >= 0
+  ✓ [PASSED]  Action 3 cash weight >= 0
+  ✓ [PASSED]  Action 4 cash weight >= 0
+  ✓ [PASSED]  Action 0 risky weights in [-1, 1]
+  ✓ [PASSED]  Action 1 risky weights in [-1, 1]
+  ✓ [PASSED]  Action 2 risky weights in [-1, 1]
+  ✓ [PASSED]  Action 3 risky weights in [-1, 1]
+  ✓ [PASSED]  Action 4 risky weights in [-1, 1]
+  ✓ [PASSED]  Action 0 is a pure cash allocation (risky weights = 0)
+
+── REWARD FUNCTION ───────────────────────────────────────────────────
+  ✓ [PASSED]  _reward() returns a finite scalar
+  ✓ [PASSED]  _reward() is positive when portfolio value increases
+  ✓ [PASSED]  _reward() is negative when portfolio value decreases
+  ✓ [PASSED]  _reward() is ~0 when portfolio value is unchanged
+
+── AGENT ─────────────────────────────────────────────────────────────
+  ✓ [PASSED]  Agent can be created with obs_dim and n_actions
+  ✓ [PASSED]  agent.act(obs) returns an integer in [0, N_ACTIONS)
+  ✓ [PASSED]  agent.act(obs) returns the same action when called twice
+  ✓ [PASSED]  agent.train(env, n_steps=200) completes without exception
+  ✓ [PASSED]  act() still returns a valid action after training
+  ✓ [PASSED]  Epsilon decreases during training (exploration decays)
+
+── FULL ROLLOUT (INTEGRATION) ────────────────────────────────────────
+  ✓ [PASSED]  Untrained agent can run a complete episode without errors
+  ✓ [PASSED]  Portfolio value is always > 0 throughout an episode
+
+── WARNINGS ────────────────────────────────────────────────────────────
+  ⚠  IMPORTANT: passing all tests does NOT guarantee a good Sortino ratio.
+  ⚠  These tests only verify that your code is structurally correct.
+  ⚠  Make sure you also run a walk-forward evaluation and compare against the baselines.
+  ⚠  Never train or evaluate on data after the train_end date — that is look-ahead.
+  ⚠  Fit your StandardScaler ONLY on training data (fit=True), then reuse it on eval data.
+  ⚠  Short positions require extra care: a wrong-way short loses money when the asset rises.
+
+========================================================================
+  All checks passed. Good luck on the evaluation!
+========================================================================
