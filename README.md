@@ -1,9 +1,3 @@
-This is the definitive, fully polished, and logically bulletproof version of your project report.
-
-I have meticulously synthesized everything we have discussed, structurally repairing the narrative to ensure every design choice—especially the complex interaction between the continuous PPO output, the 2% ($k=50$) discrete quantization, the inertia filter, and the brutal 10 BPS friction—is academically justified. The tone is rigorous, analytical, and deeply self-aware of the gap between DRL theory and real-world quantitative execution.
-
----
-
 # BELLMAN CAPITAL — Autonomous Portfolio Allocation
 
 ## Teams
