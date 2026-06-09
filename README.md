@@ -32,10 +32,6 @@ Grading rewards rigorous methodology, not high returns. An agent that fails on t
 - **Inception date:** 08/06/2026
 - **Thesis:** The agent posits that financial markets are not simple Markovian processes, but sequential systems whose underlying dynamics resemble natural language grammar: an isolated event (a single price candle) lacks predictive utility outside the context of its surrounding regime. This premise dictates the architecture. Rather than relying on short-memory heuristics, the design leverages a Patch Time Series approach using a multimodal Transformer. By tokenizing the time series, the agent processes contiguous historical blocks to extract long-term, multi-scale dependencies—from microstructure up to 410-hour macro trends. This contextual reading, fused internally with the current portfolio state and trading inertia, allows the continuous PPO policy to filter high-frequency noise and survive the 10 BPS friction through deliberate, contextualized rebalancing rather than reactive trading.
 
-## 1. Problem Formulation
-Here is the complete, rubric-compliant draft for **Section 1: Problem Formulation**. I have woven the precise statistical findings from your EDA (the spectral cycles, the 1 bp mean return vs. 80-120 bps excursions, the massive Granger causality in volatility) directly into the justifications. I also articulated your continuous-to-discrete action space logic perfectly.
-
----
 
 ## 1. Problem Formulation
 
@@ -43,56 +39,54 @@ Here is the complete, rubric-compliant draft for **Section 1: Problem Formulatio
 
 **Feature Justification**
 
-* `time_min`, `time_hour`, `time_dow`: Cyclical time encodings capture the significant intraday volume and volatility seasonality observed in the EDA without introducing absolute time bias.
-* `spread_1_0_{h}` & `spread_2_0_{h}`: Cointegration spreads track relative mispricing across the specific spectral cycles (86h, 171h, 410h) discovered in the Power Spectral Density (PSD) analysis.
-* `raw_log_ret` / `log_ret_{h}`: Captures immediate directional momentum and macro trend alignment, despite low overall autocorrelation, acting as a regime filter.
-* `raw_abs_ret` / `abs_ret_{h}`: Tracks volatility clustering and cross-asset volatility transmission, which Granger causality tests proved is massively significant (e.g., Asset 1 causing Asset 0 volatility with an F-stat > 3000).
-* `raw_amplitude` / `amplitude_{h}`: Measures intra-bar excursion (which averages 80-120 bps vs a 1 bp net close-to-close move), identifying liquidity gaps and risk thresholds critical for survival.
-* `raw_vol_roc` / `vol_roc_{h}`: Quantifies sudden market participation spikes, which the EDA showed are clustered and indicate regime transitions.
-* `raw_tbr` / `tbr_{h}`: Taker buy ratio measures order flow imbalance; divergence between TBR and price is a primary leading indicator of absorption.
-* `raw_drawdown` / `drawdown_{h}`: Rolling drawdowns explicitly track structural weakness and deep traps, since EDA showed assets can drop 80-95% and stagnate for months.
-* `portfolio` (weights): The agent's current allocation, mathematically required to make transition-aware decisions in the presence of transaction costs.
-* `inertia` (bars since trade): Tracks time-in-position to enforce an anti-turnover heuristic, preventing the 350% annual capital bleed observed in high-frequency baseline simulations.
-* `mask`: Manages variable-length padding for the Transformer sequence to prevent lookahead bias during early steps.
+* `time_min`, `time_hour`, `time_dow`: Cyclical time encodings capture intraday volume and volatility seasonality without introducing absolute time bias.
+* `spread_1_0_{h}` & `spread_2_0_{h}`: Cointegration spreads track relative mispricing across spectral cycles (86h, 171h, 410h) derived from Power Spectral Density (PSD) analysis.
+* `log_ret_{h}`: Captures directional momentum and macro trend alignment across specific temporal horizons.
+* `abs_ret_{h}`: Tracks volatility clustering and cross-asset volatility transmission (Granger causality tests show Asset 1 causes Asset 0 volatility with an F-stat > 3000).
+* `amplitude_{h}`: Measures intra-bar excursion. The 15-minute excursion averages 80-120 bps against a 1 bp net close-to-close move, defining critical liquidity and risk thresholds.
+* `vol_roc_{h}`: Quantifies sudden market participation spikes indicating regime transitions.
+* `tbr_{h}`: Taker buy ratio measures order flow imbalance.
+* `drawdown_{h}`: Rolling drawdowns track structural weakness, accounting for the EDA finding that assets can drop 80-95% and stagnate for months.
+* `portfolio`: The agent's current allocation weights. Mathematically necessary to calculate transition costs and turnover.
+* `inertia`: The "age" of the current portfolio. Allows the network to contextualize the value of holding a position versus paying transaction costs.
+* `mask`: Manages variable-length padding for the Transformer sequence.
 
 **1. What is in your observation at time `t`? List every component.**
 The observation is a multimodal dictionary comprising:
 
-* `x`: A dense matrix of 80 engineered features (microstructure, momentum, volatility, drawdown, and order flow metrics) calculated across base and macro temporal scales (86h, 171h, 410h).
+* `x`: A dense matrix of 80 engineered features representing the market state, calculated across base and macro temporal scales (86h, 171h, 410h).
 * `t`: A matrix of cyclical temporal coordinates.
-* `portfolio`: A continuous vector of 4 elements representing the current asset allocation.
-* `inertia`: A scalar (`np.log1p(bars_since_trade)`) tracking the time lock of the current position.
+* `portfolio`: A continuous vector of 4 elements representing the current distribution of assets and cash.
+* `inertia`: A scalar (`np.log1p(bars_since_trade)`) tracking the time elapsed since the last portfolio rebalance.
 * `mask`: A boolean array managing sequence padding.
 
 **2. Raw prices are not Markov: past volatility and momentum matter. How does your observation account for this?**
-The observation dismantles the Markov assumption through two mechanisms. First, the features themselves are multi-scale rolling computations; an observation at time `t` contains embedded macro context up to 410 hours into the past (e.g., `asset_1_abs_ret_410h`). Second, the architecture processes a physical sequence of 192 historical steps simultaneously via a Transformer encoder. Instead of relying on a single snapshot, the network computes dynamic attention weights across the sequence, explicitly learning the long-memory volatility clustering identified in the EDA.
+The observation dismantles the Markov assumption through two structural decisions. First, the features embed long-memory contexts via rolling aggregations up to 410 hours into the past (e.g., `asset_1_abs_ret_410h`). Second, the state is not a single snapshot; it is a physical sequence of 192 historical steps. The Transformer architecture processes this sequence simultaneously, using self-attention to dynamically infer volatility clustering and momentum context from the historical block.
 
 **3. How much history do you include, and why?**
-The model ingests a physical sequence of **192 bars** (48 hours of 15-minute candles) at every step, but the engineered features within those bars contain rolling aggregations up to **410 hours** (~17 days). This dual-horizon structure is dictated by the PSD (Power Spectral Density) analysis. The PSD revealed clear energy peaks at ultra-macro (410h), macro (171h), meso (85h), and micro (24h) cycles. The 192-bar sequence allows the agent to react tactically to low-latency shocks (like the lag-1 Granger volatility transmission), while the 410h embedded features provide the overarching regime context needed to avoid trading against the primary trend.
+The agent ingests a sequence of 192 continuous bars (48 hours of 15-minute candles) at every step, while the engineered features within those bars contain rolling historical data up to 410 hours (~17 days). The 192-bar window provides the tactical granularity required to react to low-latency shocks (e.g., lag-1 volatility transmission), while the 410-hour embedded features provide the overarching macro regime context needed to avoid trading against primary trends.
 
 ---
 
 ### Action Space
 
 **1. What is your action space? If discrete, list every action and its economic interpretation.**
-The fundamental mathematical space is **continuous**, but it is projected into a **discrete** menu by the environment wrapper. The neural network (PPO Actor) outputs a continuous vector in the range $[-1.0, 1.0]$ for the three risky assets. The wrapper applies an L1 projection (capping gross exposure at 1.0 and assigning the remainder to cash) and then uses Euclidean distance to snap the continuous intent to the nearest predefined discrete action.
+The mathematical space is **continuous**, but it is projected onto a high-resolution **quantized grid** by the environment wrapper. The neural network (PPO Actor) outputs a continuous vector of 3 elements in the range $[-1.0, 1.0]$, representing the desired allocation for the three risky assets.
 
-The resulting discrete actions evaluated by the framework are:
+The environment applies a deterministic translation pipeline to resolve this intent:
 
-* `0`: **100% Cash** (Passive defense; capital preservation during >2.0 macro volatility regimes).
-* `1`: **100% Long Asset 0** (Directional long on the safest correlated asset).
-* `2`: **100% Long Asset 1** (Directional long on the systemic volatility epicenter).
-* `3`: **100% Long Asset 2** (Directional long on the third asset).
-* `4`: **100% Short Asset 2 / 200% Cash** (Market-neutral/bearish bet against Asset 2; profits when Asset 2 falls, holding double cash as collateral).
+1. **High-Resolution Quantization (`np.round(a * 50) / 50`):** The raw continuous signals are snapped to the nearest 2% increment.
+2. **L1 Projection:** Gross exposure is mathematically capped at 1.0. If the sum of absolute risky weights exceeds 1.0, the vector is normalized. Short positions are permitted via negative weights.
+3. **Cash Derivation:** Unallocated capital up to 1.0 is automatically assigned to the Cash weight.
+4. **Inertia Filter:** The environment calculates the intended L1 turnover distance between the target and current portfolio. If this turnover is below a 0.25 threshold, the intended action is discarded, and the current state is maintained.
 
 **2. Why did you choose this representation?**
-A purely continuous action space operated by a neural network inevitably outputs marginal variations at every step (e.g., shifting from `0.334` to `0.341`). In a regime with 10 BPS transaction costs (20 BPS round trip), and with a mean bar return of only ~1 bp, these microscopic adjustments generate massive turnover. The EDA proves that trading every bar destroys ~350% of capital annually.
+A purely continuous action space allows the PPO policy gradient to optimize fractional allocations natively, which is the mathematically correct formulation for continuous portfolio management. However, deep learning models in pure continuous spaces generate constant, microscopic variance at every timestep (e.g., shifting weights from `0.3341` to `0.3346`). In an environment with 10 BPS transaction costs, these microscopic adjustments generate catastrophic turnover that guarantees capital ruin.
 
-By allowing the PPO agent to learn in a rich continuous gradient space, but aggressively snapping its output to a discrete menu, we resolve this tension. It eliminates high-frequency "whipsawing" and forces the agent to execute deliberate, chunked rebalancing logic characteristic of institutional portfolio management.
+By applying a $k=50$ quantization, we created a hybrid solution. It retains the expressive gradient topology of a continuous space for the neural network, allowing it to "think" in terms of continuous distributions, while the environment wrapper truncates the destructive float-32 noise, forcing the output onto a clean, discrete 2% grid.
 
 **3. What does this choice prevent your agent from doing?**
-It strictly prevents the agent from executing partial portfolio scaling or micro-adjustments. The agent cannot shift allocations by 5% or 10% to perfectly optimize a subtle momentum divergence; it is forced to commit to absolute structural shifts (e.g., moving entirely from Cash to Asset 0). We explicitly trade granular scaling precision for rigid survival against the mathematical certainty of transaction fee ruin.
-
+It prevents the agent from engaging in high-frequency, sub-2% micro-adjustments. Combined with the 0.25 Inertia Filter, the agent is strictly prohibited from executing "whipsaw" scaling. It cannot gently slide an allocation by 1% to perfectly track a subtle momentum divergence; it is forced to commit to rigid blocks of capital and endure temporary drawdowns until the mathematical edge of a new position exceeds the hard turnover threshold.
 
 ## 2. Data and Exploratory Analysis
 
@@ -388,14 +382,14 @@ The final, rigorous test evaluated `Exp_5` against all baselines over the entire
 | ➖ SMA Crossover | -100.00% | 31.40% | -21.69 | 100.00% | $ 8,647.16 | [+0.33, +0.33, +0.33, +0.00] |
 
 
+### Research, Reproducibility, and Artifacts
 
-### Research & Reproducibility Notebooks
+For complete transparency and technical inspection, the project's core workflow is preserved across three dedicated notebooks. Furthermore, all training telemetry has been retained for independent verification.
 
-For complete transparency and deeper technical inspection, the project's core workflow is preserved across three dedicated notebooks:
-
-* **`notebooks/own_eda.ipynb` (Exploratory Data Analysis):** The rigorous statistical analysis conducted strictly on the training set. It documents the transaction cost chasm, spectral volatility cycles, and structural market anomalies that dictated the agent's state space and reward design.
-* **`notebooks/dirty_training.ipynb` (Model Training & Ablation):** The complete end-to-end PPO training pipeline. It contains the custom `QuantRoberta` architecture, the sequential curriculum learning schedule, and the execution of the 5-agent ablation study alongside the KL-collapse early stopping mechanics.
-* **`notebooks/test_models.ipynb` (Out-of-Sample Evaluation):** The deterministic testing environment. It details the isolated forward-pass inference, the custom functional baseline generation, and the exact mathematical computation of the final evaluation metrics (Sortino, Max Drawdown, Total Fees) across the unseen data.
+* **[`notebooks/own_eda.ipynb`](https://nbviewer.org/github/ddfulaa/bellmancapital/blob/main/notebooks/own_eda.ipynb) (Exploratory Data Analysis):** The rigorous statistical analysis conducted strictly on the training set. It documents the transaction cost chasm, spectral volatility cycles, and structural market anomalies that dictated the agent's state space and reward design.
+* **[`notebooks/dirty_training.ipynb`](https://nbviewer.org/github/ddfulaa/bellmancapital/blob/main/notebooks/dirty_training.ipynb) (Model Training & Ablation):** The complete end-to-end PPO training pipeline. It contains the custom `QuantRoberta` architecture, the sequential curriculum learning schedule, and the execution of the 5-agent ablation study alongside the KL-collapse early stopping mechanics.
+* **[`notebooks/test_models.ipynb`](https://nbviewer.org/github/ddfulaa/bellmancapital/blob/main/notebooks/test_models.ipynb) (Out-of-Sample Evaluation):** The deterministic testing environment. It details the isolated forward-pass inference, the custom functional baseline generation, and the exact mathematical computation of the final evaluation metrics (Sortino, Max Drawdown, Total Fees) across the unseen data.
+* **TensorBoard Telemetry & Model Weights:** While intermediate checkpoint files (e.g., `checkpoint_iter_50.pth`) may be omitted from the repository to manage storage limits, the raw TensorBoard logs (`events.out.tfevents.*`) are fully preserved within the `experiments/` directory. This allows anyone to audit the exact training metrics (KL divergence, entropy decay, loss curves, and rolling returns) without needing the intermediate weights. The final converged models (e.g., `model_BEST.pth` and phase-specific weights) are explicitly included to guarantee immediate out-of-sample reproducibility.
 
 ## 10. Discussion
 
